@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "network-latency-monitor"
+version = "1.0.0"
+description = "Real-time multi-host network latency monitoring and analysis tool"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Marcus Blessing Onurawa" }]
+requires-python = ">=3.8"
+dependencies = []
+keywords = ["network", "latency", "ping", "monitoring", "rtt", "packet loss"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: System :: Networking :: Monitoring",
+    "Environment :: Console",
+]
+
+[project.optional-dependencies]
+rich = ["rich>=12"]
+test = ["pytest>=7"]
+
+[project.scripts]
+latency-monitor = "latency_monitor:main"
+
+[tool.setuptools]
+py-modules = ["latency_monitor"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

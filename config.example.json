@@ -1,0 +1,11 @@
+{
+  "interval": 2,
+  "timeout": 3,
+  "log_to_csv": true,
+  "hosts": [
+    {"name": "Local Gateway", "host": "192.168.0.1"},
+    {"name": "Google DNS", "host": "8.8.8.8"},
+    {"name": "Cloudflare DNS", "host": "1.1.1.1"},
+    {"name": "OpenDNS", "host": "208.67.222.222"}
+  ]
+}

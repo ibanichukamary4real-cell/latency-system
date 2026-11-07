@@ -46,8 +46,8 @@ This software was developed for the research project *Design and Implementation 
 ### Option 1: Download and run (simplest)
 
 ```bash
-git clone https://github.com/<your-username>/network-latency-monitor.git
-cd network-latency-monitor
+git clone https://github.com/ibanichukamary4real-cell/latency-system.git
+cd latency-system
 pip install -r requirements.txt     # optional: installs rich for the coloured table
 python latency_monitor.py
 ```
@@ -57,14 +57,14 @@ On Windows, use `py` instead of `python` if `python` is not recognised.
 ### Option 2: Install as a command
 
 ```bash
-pip install git+https://github.com/<your-username>/network-latency-monitor.git
+pip install git+https://github.com/ibanichukamary4real-cell/latency-system.git
 latency-monitor
 ```
 
 Add the coloured dashboard with:
 
 ```bash
-pip install "network-latency-monitor[rich] @ git+https://github.com/<your-username>/network-latency-monitor.git"
+pip install "network-latency-monitor[rich] @ git+https://github.com/ibanichukamary4real-cell/latency-system.git"
 ```
 
 ---
@@ -217,7 +217,7 @@ The tests do not need network access: ping output is simulated for both Windows 
 ## Project structure
 
 ```
-network-latency-monitor/
+latency-system/
 ├── latency_monitor.py        # the program
 ├── config.example.json       # example configuration
 ├── requirements.txt          # optional dependency (rich)

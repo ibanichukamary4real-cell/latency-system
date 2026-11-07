@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Network Latency Monitor – Web Dashboard</title>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#16212d; --line:#2a3a4c; --text:#e6edf3; --dim:#8b9bb0;
+    --accent:#3fb6d8; --good:#3fb950; --fair:#d29922; --bad:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:24px 16px 48px}
+  h1{font-size:22px;margin:0 0 4px;color:var(--accent);letter-spacing:.2px}
+  .sub{color:var(--dim);margin:0 0 20px;font-size:14px}
+  .bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+  button,select,input{font:inherit;border-radius:6px;border:1px solid var(--line);
+       background:var(--panel);color:var(--text);padding:7px 12px}
+  button{cursor:pointer}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#04121a;font-weight:600}
+  button:hover{filter:brightness(1.1)}
+  .clock{margin-left:auto;color:var(--dim);font-family:ui-monospace,Consolas,monospace}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-family:ui-monospace,Consolas,"Courier New",monospace;font-size:14px}
+  th,td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{color:var(--accent);font-weight:600;background:#121c27}
+  th:nth-child(1),td:nth-child(1),th:nth-child(2),td:nth-child(2){text-align:left}
+  td:nth-child(2){color:var(--dim)}
+  tr:last-child td{border-bottom:none}
+  .good{color:var(--good)} .fair{color:var(--fair)} .bad{color:var(--bad)}
+  .status{text-align:center !important;font-weight:600}
+  .x{background:none;border:none;color:var(--dim);padding:0 4px;cursor:pointer}
+  .x:hover{color:var(--bad)}
+  .add{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .add input{flex:1;min-width:160px}
+  .legend{display:flex;flex-wrap:wrap;gap:18px;margin:16px 0 0;color:var(--dim);font-size:13px}
+  .note{margin-top:22px;color:var(--dim);font-size:13px;border-left:3px solid var(--line);padding-left:12px}
+  .note b{color:var(--text)}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Network Latency Monitor</h1>
+  <p class="sub">Web dashboard · real-time multi-host latency monitoring from <b>your</b> browser</p>
+
+  <div class="bar">
+    <button id="toggle" class="primary">Start monitoring</button>
+    <label>Interval
+      <select id="interval">
+        <option value="1000">1 s</option>
+        <option value="2000" selected>2 s</option>
+        <option value="5000">5 s</option>
+        <option value="10000">10 s</option>
+      </select>
+    </label>
+    <button id="reset">Reset statistics</button>
+    <button id="csv">Download CSV log</button>
+    <span class="clock" id="clock">--:--:--</span>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>Host</th><th>Address</th><th>Last (ms)</th><th>Avg (ms)</th><th>Min (ms)</th>
+            <th>Max (ms)</th><th>Loss %</th><th class="status">Status</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <div class="add">
+    <input id="newName" placeholder="Name (e.g. School portal)">
+    <input id="newUrl" placeholder="HTTPS address (e.g. https://www.example.com)">
+    <button id="addBtn">Add host</button>
+  </div>
+
+  <div class="legend">
+    <span class="good">● GOOD &lt; 50 ms</span>
+    <span class="fair">● FAIR 50–149 ms</span>
+    <span class="bad">● HIGH ≥ 150 ms</span>
+    <span class="bad">● TIMEOUT no reply in 3 s</span>
+  </div>
+
+  <p class="note">
+    <b>How this web edition measures latency.</b> Browsers are not allowed to send ICMP ping packets,
+    so this page times a small HTTPS request to each host instead. After the first (warm-up) request,
+    the connection is reused and each reading is approximately one network round trip plus a little
+    server processing time, so values are usually slightly higher than <code>ping</code>.
+    Statistics use the last 60 readings, exactly like the Python program.
+    For ICMP measurements, a local gateway and the full CSV log, run the Python program from the
+    <a href="https://github.com/ibanichukamary4real-cell/latency-system">GitHub repository</a>:
+    <code>python latency_monitor.py</code>.
+  </p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var HISTORY_SIZE = 60, TIMEOUT_MS = 3000;
+  var DEFAULT_HOSTS = [
+    { name: "Google DNS",     url: "https://dns.google/resolve?name=example.com" },
+    { name: "Cloudflare DNS", url: "https://1.1.1.1/cdn-cgi/trace" },
+    { name: "Cloudflare Web", url: "https://www.cloudflare.com/cdn-cgi/trace" },
+    { name: "GitHub",         url: "https://api.github.com/zen" }
+  ];
+
+  // ── storage (optional; page works without it) ────────────────────────────
+  function load() {
+    try { var s = JSON.parse(localStorage.getItem("nlm_hosts")); if (Array.isArray(s) && s.length) return s; }
+    catch (e) {}
+    return DEFAULT_HOSTS.slice();
+  }
+  function save() {
+    try { localStorage.setItem("nlm_hosts", JSON.stringify(hosts.map(function (h) { return { name: h.name, url: h.url }; }))); }
+    catch (e) {}
+  }
+
+  // ── per-host state (mirrors HostState in latency_monitor.py) ─────────────
+  function makeState(h) {
+    return { name: h.name, url: h.url, latency: null, history: [], sent: 0, lost: 0, warm: false, busy: false };
+  }
+  function record(s, ms) {
+    s.sent += 1; s.latency = ms;
+    s.history.push(ms); if (s.history.length > HISTORY_SIZE) s.history.shift();
+    if (ms === null) s.lost += 1;
+  }
+  function vals(s) { return s.history.filter(function (v) { return v !== null; }); }
+  function avg(s) { var v = vals(s); return v.length ? v.reduce(function (a, b) { return a + b; }, 0) / v.length : null; }
+  function minL(s) { var v = vals(s); return v.length ? Math.min.apply(null, v) : null; }
+  function maxL(s) { var v = vals(s); return v.length ? Math.max.apply(null, v) : null; }
+  function loss(s) { return s.sent ? s.lost / s.sent * 100 : 0; }
+
+  function cls(ms) { if (ms === null) return "bad"; if (ms < 50) return "good"; if (ms < 150) return "fair"; return "bad"; }
+  function statusText(s) {
+    if (!s.sent) return "WAITING";
+    if (s.latency === null) return "TIMEOUT";
+    return s.latency < 50 ? "GOOD" : (s.latency < 150 ? "FAIR" : "HIGH");
+  }
+  function fmt(ms) { return ms === null || ms === undefined ? "—" : ms.toFixed(1); }
+  function hostLabel(url) { try { return new URL(url).host; } catch (e) { return url; } }
+
+  // ── probe: time one HTTPS request ────────────────────────────────────────
+  function probe(url) {
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, TIMEOUT_MS);
+    var sep = url.indexOf("?") >= 0 ? "&" : "?";
+    var t0 = performance.now();
+    return fetch(url + sep + "_nlm=" + Date.now(), {
+      mode: "no-cors", cache: "no-store", credentials: "omit", signal: ctrl ? ctrl.signal : undefined
+    }).then(function () {
+      clearTimeout(timer); return performance.now() - t0;
+    }, function () {
+      clearTimeout(timer); return null;
+    });
+  }
+
+  function poll(s) {
+    if (!running || s.busy) return;
+    s.busy = true;
+    probe(s.url).then(function (ms) {
+      s.busy = false;
+      if (!running) return;
+      if (!s.warm && ms !== null) { s.warm = true; return; } // discard connection set-up
+      record(s, ms);
+      log.push([stamp(), s.name, s.url, ms === null ? "" : ms.toFixed(1), ms === null ? "timeout" : "ok"]);
+      render();
+    });
+  }
+
+  // ── rendering ────────────────────────────────────────────────────────────
+  var rows = document.getElementById("rows");
+  function render() {
+    var html = "";
+    hosts.forEach(function (s, i) {
+      var l = loss(s), st = statusText(s);
+      var stCls = st === "GOOD" ? "good" : st === "FAIR" ? "fair" : st === "WAITING" ? "" : "bad";
+      html += "<tr><td>" + esc(s.name) + "</td><td>" + esc(hostLabel(s.url)) + "</td>" +
+        "<td class='" + (s.sent ? cls(s.latency) : "") + "'>" + fmt(s.latency) + "</td>" +
+        "<td>" + fmt(avg(s)) + "</td><td>" + fmt(minL(s)) + "</td><td>" + fmt(maxL(s)) + "</td>" +
+        "<td class='" + (l > 5 ? "bad" : "good") + "'>" + l.toFixed(1) + "%</td>" +
+        "<td class='status " + stCls + "'>● " + st + "</td>" +
+        "<td><button class='x' title='Remove' data-i='" + i + "'>✕</button></td></tr>";
+    });
+    rows.innerHTML = html;
+  }
+  function esc(t) { var d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
+  function stamp() {
+    var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  }
+
+  // ── controls ─────────────────────────────────────────────────────────────
+  var hosts = load().map(makeState), log = [], running = false, timerId = null;
+  var toggle = document.getElementById("toggle"), intervalSel = document.getElementById("interval");
+
+  function tick() { hosts.forEach(poll); }
+  function start() {
+    running = true; toggle.textContent = "Stop monitoring"; tick();
+    timerId = setInterval(tick, parseInt(intervalSel.value, 10));
+  }
+  function stop() { running = false; toggle.textContent = "Start monitoring"; clearInterval(timerId); }
+
+  toggle.onclick = function () { running ? stop() : start(); };
+  intervalSel.onchange = function () { if (running) { stop(); start(); } };
+  document.getElementById("reset").onclick = function () { hosts = hosts.map(function (h) { return makeState(h); }); log = []; render(); };
+  document.getElementById("csv").onclick = function () {
+    var lines = [["timestamp", "name", "host", "latency_ms", "status"]].concat(log).map(function (r) {
+      return r.map(function (c) { c = String(c); return /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(",");
+    }).join("\n");
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([lines + "\n"], { type: "text/csv" }));
+    a.download = "latency_log.csv"; document.body.appendChild(a); a.click(); a.remove();
+  };
+  document.getElementById("addBtn").onclick = function () {
+    var n = document.getElementById("newName").value.trim(), u = document.getElementById("newUrl").value.trim();
+    if (!u) return;
+    if (!/^https:\/\//i.test(u)) u = "https://" + u.replace(/^http:\/\//i, "");
+    hosts.push(makeState({ name: n || hostLabel(u), url: u })); save(); render();
+    document.getElementById("newName").value = ""; document.getElementById("newUrl").value = "";
+  };
+  rows.onclick = function (e) {
+    var i = e.target.getAttribute && e.target.getAttribute("data-i");
+    if (i !== null && i !== undefined) { hosts.splice(parseInt(i, 10), 1); save(); render(); }
+  };
+  setInterval(function () { document.getElementById("clock").textContent = new Date().toLocaleTimeString(); }, 1000);
+
+  render(); start();
+})();
+</script>
+</body>
+</html>

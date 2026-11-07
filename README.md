@@ -8,6 +8,8 @@ No server, no database, no SNMP and no software on the monitored hosts. It runs 
 
 ![Sample output](docs/sample_output.png)
 
+**Live web dashboard:** https://ibanichukamary4real-cell.github.io/latency-system/ (runs in your browser; see "Web edition" below)
+
 This software was developed for the research project *Design and Implementation of a Real-Time Multi-Host Network Latency Monitoring and Analysis System* by Marcus Blessing Onurawa.
 
 ---
@@ -186,6 +188,15 @@ Archive or rotate `latency_log.csv` from time to time to control its size.
 
 ---
 
+## Web edition (GitHub Pages)
+
+A browser version of the dashboard is in [`docs/index.html`](docs/index.html) and is published at
+https://ibanichukamary4real-cell.github.io/latency-system/.
+
+Browsers cannot send ICMP ping packets, so the web edition times a small HTTPS request to each host instead (after one warm-up request). Readings are therefore usually a little higher than `ping`. It uses the same 60-reading statistics, loss percentage, GOOD/FAIR/HIGH/TIMEOUT statuses and CSV format as the Python program. For ICMP measurements and local gateway monitoring, use the Python program.
+
+---
+
 ## Running the tests
 
 ```bash
@@ -225,6 +236,7 @@ latency-system/
 ├── tests/
 │   └── test_latency_monitor.py
 ├── docs/
+│   ├── index.html        # web dashboard (GitHub Pages)
 │   └── sample_output.png
 ├── .github/workflows/tests.yml   # automatic tests on GitHub
 ├── LICENSE

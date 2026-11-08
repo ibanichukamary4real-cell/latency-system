@@ -103,18 +103,17 @@
   var DEFAULT_HOSTS = [
     { name: "Google DNS",     url: "https://dns.google/resolve?name=example.com" },
     { name: "Cloudflare DNS", url: "https://1.1.1.1/cdn-cgi/trace" },
-    { name: "Cloudflare Web", url: "https://www.cloudflare.com/cdn-cgi/trace" },
-    { name: "GitHub",         url: "https://api.github.com/zen" }
+    { name: "OpenDNS",        url: "https://doh.opendns.com/dns-query" }
   ];
 
   // ── storage (optional; page works without it) ────────────────────────────
   function load() {
-    try { var s = JSON.parse(localStorage.getItem("nlm_hosts")); if (Array.isArray(s) && s.length) return s; }
+    try { var s = JSON.parse(localStorage.getItem("nlm_hosts_v2")); if (Array.isArray(s) && s.length) return s; }
     catch (e) {}
     return DEFAULT_HOSTS.slice();
   }
   function save() {
-    try { localStorage.setItem("nlm_hosts", JSON.stringify(hosts.map(function (h) { return { name: h.name, url: h.url }; }))); }
+    try { localStorage.setItem("nlm_hosts_v2", JSON.stringify(hosts.map(function (h) { return { name: h.name, url: h.url }; }))); }
     catch (e) {}
   }
 
